@@ -81,10 +81,23 @@ echo "https://canvas.asu.edu/api/v1" | npx wrangler secret put CANVAS_BASE_URL
 echo "your_canvas_token"            | npx wrangler secret put CANVAS_TOKEN
 ```
 
-The Worker accepts JSON-RPC `tools/list` and `tools/call` POSTs. Per-request
-token override is supported via the `Authorization: Bearer <token>` header,
-falling back to the `CANVAS_TOKEN` secret when absent — useful for
-multi-tenant deployments.
+The Worker accepts JSON-RPC `tools/list` and `tools/call` POSTs.
+
+**Multi-tenant headers** (override env per request — Ada uses these):
+
+```http
+Authorization:    Bearer <user's canvas PAT>
+X-Canvas-Base-Url https://canvas.<institution>.edu/api/v1
+X-Ada-Service-Key <ADA_SERVICE_KEY>          # required when env.ADA_SERVICE_KEY is set
+```
+
+When no headers are present, the worker falls back to the `CANVAS_BASE_URL` /
+`CANVAS_TOKEN` secrets (single-tenant mode). Set `ADA_SERVICE_KEY` to gate
+header-based requests behind a shared secret:
+
+```bash
+echo "$(openssl rand -hex 32)" | npx wrangler secret put ADA_SERVICE_KEY
+```
 
 ## Notes
 

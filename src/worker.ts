@@ -13,8 +13,15 @@ import { CanvasClient, CanvasError } from "./canvas.js";
 import { tools } from "./tools.js";
 
 interface Env {
-  CANVAS_BASE_URL: string;
+  CANVAS_BASE_URL?: string;
   CANVAS_TOKEN?: string;
+  /**
+   * Optional shared secret. When set, header-based requests (per-user creds
+   * via Authorization / X-Canvas-Base-Url) must include
+   * `X-Ada-Service-Key: <ADA_SERVICE_KEY>`. Env-only single-tenant requests
+   * skip this check.
+   */
+  ADA_SERVICE_KEY?: string;
 }
 
 interface JsonRpcRequest {
@@ -57,12 +64,19 @@ function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
   return {};
 }
 
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "content-type, authorization, x-canvas-base-url, x-ada-service-key, mcp-session-id",
+};
+
 function rpcResult(id: JsonRpcRequest["id"], result: unknown): Response {
-  return Response.json({ jsonrpc: "2.0", id, result });
+  return Response.json({ jsonrpc: "2.0", id, result }, { headers: CORS_HEADERS });
 }
 
 function rpcError(id: JsonRpcRequest["id"], code: number, message: string): Response {
-  return Response.json({ jsonrpc: "2.0", id, error: { code, message } });
+  return Response.json({ jsonrpc: "2.0", id, error: { code, message } }, { headers: CORS_HEADERS });
 }
 
 function rpcToolError(id: JsonRpcRequest["id"], message: string): Response {
@@ -71,13 +85,16 @@ function rpcToolError(id: JsonRpcRequest["id"], message: string): Response {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
     if (request.method === "GET") {
       return new Response("canvas-mcp: POST JSON-RPC 2.0 requests to this endpoint.\n", {
-        headers: { "content-type": "text/plain" },
+        headers: { "content-type": "text/plain", ...CORS_HEADERS },
       });
     }
     if (request.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
+      return new Response("Method Not Allowed", { status: 405, headers: CORS_HEADERS });
     }
 
     let body: JsonRpcRequest;
@@ -89,11 +106,27 @@ export default {
 
     const headerAuth = request.headers.get("authorization");
     const headerToken = headerAuth?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+    const headerBaseUrl = request.headers.get("x-canvas-base-url")?.trim();
+
     const token = headerToken || env.CANVAS_TOKEN;
-    if (!env.CANVAS_BASE_URL || !token) {
-      return rpcError(body.id, -32603, "Missing CANVAS_BASE_URL or CANVAS_TOKEN");
+    const baseUrl = headerBaseUrl || env.CANVAS_BASE_URL;
+    const usedHeaderAuth = Boolean(headerToken || headerBaseUrl);
+
+    if (env.ADA_SERVICE_KEY && usedHeaderAuth) {
+      const provided = request.headers.get("x-ada-service-key");
+      if (provided !== env.ADA_SERVICE_KEY) {
+        return rpcError(body.id, -32001, "Missing or invalid X-Ada-Service-Key");
+      }
     }
-    const client = new CanvasClient({ baseUrl: env.CANVAS_BASE_URL, token });
+
+    if (!baseUrl || !token) {
+      return rpcError(
+        body.id,
+        -32603,
+        "No Canvas credentials. Provide Authorization + X-Canvas-Base-Url headers or set CANVAS_* secrets.",
+      );
+    }
+    const client = new CanvasClient({ baseUrl, token });
 
     if (body.method === "initialize") {
       return rpcResult(body.id, {

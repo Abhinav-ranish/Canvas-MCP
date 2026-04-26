@@ -106,6 +106,12 @@ export class CanvasClient {
     return results.slice(0, max);
   }
 
+  // ---------- Auth probe ----------
+
+  whoami() {
+    return this.request<{ id: number; name: string; email?: string }>(`/users/self`);
+  }
+
   // ---------- Courses ----------
 
   listCourses(opts: { enrollmentState?: "active" | "completed" | "invited"; limit?: number } = {}) {

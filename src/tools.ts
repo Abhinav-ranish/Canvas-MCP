@@ -12,6 +12,13 @@ const idSchema = z.union([z.string(), z.number()]);
 
 export const tools: ToolDef<z.ZodTypeAny>[] = [
   {
+    name: "whoami",
+    description:
+      "Return the authenticated Canvas user (id, name, email). Useful for validating a PAT.",
+    schema: z.object({}),
+    handler: (_input, c) => c.whoami(),
+  },
+  {
     name: "list_courses",
     description:
       "List the authenticated student's courses. Defaults to active enrollments. Returns id, name, course_code, term, and dates.",
