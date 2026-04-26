@@ -1,0 +1,27 @@
+{
+  "name": "@ada/mcp-canvas",
+  "version": "0.1.0",
+  "description": "MCP server exposing Canvas LMS as tools for Ada and other MCP clients",
+  "type": "module",
+  "bin": {
+    "mcp-canvas": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
